@@ -1,0 +1,48 @@
+title Weather App - Current Weather Request
+
+participant User
+participant "React Frontend" as Frontend
+participant "WeatherApiClient.ts" as ApiClient
+participant "Express Backend" as Backend
+participant "weatherController.js" as Controller
+participant "weatherService.js" as Service
+database "MongoDB Cache" as MongoDB
+participant "External Weather API" as WeatherAPI
+
+User->Frontend: Open dashboard or search location
+Frontend->ApiClient: getDashboardWeather(location)
+ApiClient->Backend: GET /api/weather/dashboard?location=Fairfield,IA
+Backend->Controller: route request
+Controller->Service: getDashboardWeather(location)
+
+Service->MongoDB: find fresh cached weather data
+alt fresh cache exists
+    MongoDB-->Service: cached normalized weather data
+else cache missing or stale
+    MongoDB-->Service: no usable cache
+    Service->WeatherAPI: request current, forecast, alerts, observations
+    WeatherAPI-->Service: provider weather response
+    Service->Service: normalize provider response
+    Service->MongoDB: upsert normalized cache document
+end
+
+Service-->Controller: dashboard weather payload
+Controller-->Backend: JSON response
+Backend-->ApiClient: 200 OK weather payload
+ApiClient-->Frontend: normalized dashboard data
+Frontend-->User: Render current weather, forecast, alerts, chart, observations, and map
+
+alt provider error
+    WeatherAPI-->Service: error or timeout
+    Service->MongoDB: find last known cached data
+    alt fallback data exists
+        MongoDB-->Service: stale fallback weather data
+        Service-->Controller: weather payload with fallback flag
+        Controller-->Frontend: partial data response
+        Frontend-->User: Render dashboard with stale-data notice
+    else no fallback exists
+        Service-->Controller: service error
+        Controller-->Frontend: error response
+        Frontend-->User: Show recoverable error state
+    end
+end
