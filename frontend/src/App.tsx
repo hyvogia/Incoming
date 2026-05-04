@@ -221,6 +221,7 @@ function App() {
   const [locationMatches, setLocationMatches] = useState<LocationMatch[]>([])
   const [isSearchingLocations, setIsSearchingLocations] = useState(false)
   const [isSearchOpen, setIsSearchOpen] = useState(false)
+  const [lastVisited, setLastVisited] = useState<WeatherSummary | null>(null)
 
   const showDashboard = () => setView('dashboard')
   const showDevelopment = () => setView('development')
@@ -365,6 +366,9 @@ function App() {
     setLocationMatches([])
     setIsSearchOpen(false)
     showDashboard()
+    // remember the prior location before loading the newly selected one
+    setLastVisited(weather)
+
     loadWeatherSummary({
       latitude: location.latitude,
       longitude: location.longitude,
@@ -385,6 +389,20 @@ function App() {
   const unitLabel = temperatureUnit === 'fahrenheit' ? 'F' : 'C'
   const hasLiveRadar = weather.radar?.status === 'available' && weather.radar.radarTileUrl
   const weeklyTemperatureLine = getTemperaturePolyline(weekDays, temperatureUnit)
+
+  // ensure lastVisited defaults to the current weather after refresh/initial load
+  useEffect(() => {
+    if (!lastVisited && weather) {
+      setLastVisited(weather)
+    }
+    // only want to run when weather first becomes available
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [weather])
+
+  const lastVisitedDisplay = lastVisited || weather
+  const lastVisitedName = formatLocationName(lastVisitedDisplay.location)
+  const lastVisitedIcon = getWeatherIcon(lastVisitedDisplay.current.condition)
+  const lastVisitedTemp = formatTemperature(lastVisitedDisplay.current.temperature, temperatureUnit)
 
   return (
     <div className="app-shell">
@@ -624,8 +642,8 @@ function App() {
           <section className="panel compact-panel" aria-label="Last visited">
             <header className="panel__heading">Last visited</header>
             <div className="visited-row">
-              <span>{locationName}</span>
-              <strong>{weatherIcon} {formatTemperature(weather.current.temperature, temperatureUnit)}{unitLabel}</strong>
+              <span>{lastVisitedName}</span>
+              <strong>{lastVisitedIcon} {lastVisitedTemp}{unitLabel}</strong>
             </div>
           </section>
 
