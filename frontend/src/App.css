@@ -127,6 +127,24 @@
   padding: 10px 0 18px;
 }
 
+.data-status {
+  margin-bottom: 8px;
+  padding: 7px 10px;
+  border: 1px solid #dfe6ee;
+  background: #ffffff;
+  color: #626478;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.data-status--ready {
+  color: #276b42;
+}
+
+.data-status--error {
+  color: #9a3b2f;
+}
+
 .summary-grid {
   display: grid;
   grid-template-columns: 1.02fr 1fr 1fr;
@@ -302,6 +320,11 @@
 .map-label--west {
   top: 150px;
   left: 42px;
+}
+
+.map-label--location {
+  right: 20px;
+  bottom: 18px;
 }
 
 .map-pin {

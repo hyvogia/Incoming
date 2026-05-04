@@ -1,4 +1,5 @@
 const WeatherData = require('../models/WeatherData')
+const { fetchLiveWeather } = require('../services/openMeteoService')
 
 const mockWeather = {
   location: {
@@ -39,16 +40,34 @@ const mockWeather = {
 async function getWeatherSummary(req, res, next) {
   try {
     const location = req.query.location || 'Fairfield, Iowa'
-    const savedWeather = await WeatherData.findOne({
+    const liveCache = await WeatherData.findOne({
       'location.name': /fairfield/i,
-      provider: 'mock',
+      provider: 'open-meteo',
+      expiresAt: { $gt: new Date() },
     }).lean()
 
+    if (liveCache) {
+      return res.json({
+        data: liveCache,
+        meta: {
+          location,
+          source: 'mongodb-cache',
+        },
+      })
+    }
+
+    const liveWeather = await fetchLiveWeather()
+    const weather = await WeatherData.findOneAndUpdate(
+      { 'location.name': liveWeather.location.name, 'location.region': liveWeather.location.region, provider: 'open-meteo' },
+      liveWeather,
+      { new: true, upsert: true, setDefaultsOnInsert: true },
+    ).lean()
+
     res.json({
-      data: savedWeather || mockWeather,
+      data: weather,
       meta: {
         location,
-        source: savedWeather ? 'mongodb' : 'mock',
+        source: 'open-meteo',
       },
     })
   } catch (error) {

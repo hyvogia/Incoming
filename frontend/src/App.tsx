@@ -1,13 +1,141 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import './App.css'
 
 type AppView = 'dashboard' | 'development'
 
+type WeatherSummary = {
+  location: {
+    name: string
+    region: string
+    country: string
+    latitude: number
+    longitude: number
+  }
+  current: {
+    temperature: number
+    feelsLike: number
+    dewPoint: number
+    condition: string
+    windSpeed: number
+    windGust: number
+    humidity: number
+    pressure: number
+    rain: number
+    sunrise: string
+    sunset: string
+  }
+  forecast: ForecastDay[]
+  provider: string
+}
+
+type ForecastDay = {
+  day: string
+  condition: string
+  high: number
+  low: number
+  windSpeed: number
+  precipitation: number
+}
+
+const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:5050'
+
+const fallbackWeather: WeatherSummary = {
+  location: {
+    name: 'Fairfield',
+    region: 'Iowa',
+    country: 'US',
+    latitude: 41.0076,
+    longitude: -91.9637,
+  },
+  current: {
+    temperature: 48,
+    feelsLike: 45,
+    dewPoint: 43,
+    condition: 'Clear',
+    windSpeed: 9,
+    windGust: 13,
+    humidity: 81,
+    pressure: 29.6,
+    rain: 0,
+    sunrise: '6:02 AM',
+    sunset: '8:07 PM',
+  },
+  forecast: [
+    { day: 'Mon', condition: 'Partly cloudy', high: 81, low: 46, windSpeed: 9, precipitation: 0.01 },
+    { day: 'Tue', condition: 'Cloudy', high: 59, low: 46, windSpeed: 9, precipitation: 0 },
+    { day: 'Wed', condition: 'Cloudy', high: 55, low: 39, windSpeed: 7, precipitation: 0 },
+    { day: 'Thu', condition: 'Partly cloudy', high: 61, low: 37, windSpeed: 7, precipitation: 0.01 },
+    { day: 'Fri', condition: 'Partly cloudy', high: 66, low: 46, windSpeed: 7, precipitation: 0 },
+  ],
+  provider: 'fallback',
+}
+
+function getWeatherIcon(condition: string) {
+  const normalized = condition.toLowerCase()
+
+  if (normalized.includes('rain') || normalized.includes('drizzle') || normalized.includes('shower')) {
+    return '🌧'
+  }
+
+  if (normalized.includes('thunder')) {
+    return '⛈'
+  }
+
+  if (normalized.includes('snow')) {
+    return '❄'
+  }
+
+  if (normalized.includes('cloud') || normalized.includes('overcast')) {
+    return '☁'
+  }
+
+  return '☀'
+}
+
 function App() {
   const [view, setView] = useState<AppView>('dashboard')
+  const [weather, setWeather] = useState<WeatherSummary>(fallbackWeather)
+  const [weatherSource, setWeatherSource] = useState('fallback')
+  const [weatherStatus, setWeatherStatus] = useState<'loading' | 'ready' | 'error'>('loading')
 
   const showDashboard = () => setView('dashboard')
   const showDevelopment = () => setView('development')
+
+  useEffect(() => {
+    let isMounted = true
+
+    async function loadWeatherSummary() {
+      try {
+        const response = await fetch(`${apiBaseUrl}/api/weather/summary`)
+
+        if (!response.ok) {
+          throw new Error('Weather request failed')
+        }
+
+        const payload = await response.json()
+
+        if (isMounted) {
+          setWeather(payload.data)
+          setWeatherSource(payload.meta.source)
+          setWeatherStatus('ready')
+        }
+      } catch (error) {
+        if (isMounted) {
+          setWeatherStatus('error')
+        }
+      }
+    }
+
+    loadWeatherSummary()
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
+
+  const forecastDays = weather.forecast.slice(0, 5)
+  const locationName = `${weather.location.name}, ${weather.location.region}`
+  const weatherIcon = getWeatherIcon(weather.current.condition)
 
   return (
     <div className="app-shell">
@@ -68,36 +196,42 @@ function App() {
       {view === 'dashboard' ? (
         /* Main Content Sections */
         <main className="dashboard" id="today">
+          <div className={`data-status data-status--${weatherStatus}`}>
+            {weatherStatus === 'loading' && 'Loading live weather...'}
+            {weatherStatus === 'ready' && `Live weather connected via ${weatherSource}`}
+            {weatherStatus === 'error' && 'Live weather unavailable. Showing fallback data.'}
+          </div>
+
           <section className="summary-grid" aria-label="Weather summary">
             <article className="panel current-panel">
               <div className="panel__body current-panel__body">
                 <div>
-                  <p className="location-label">Fairfield</p>
-                  <div className="temperature-placeholder">48°</div>
-                  <p className="muted">Feels like 45°</p>
-                  <p className="muted">Dewpoint 43°</p>
+                  <p className="location-label">{weather.location.name}</p>
+                  <div className="temperature-placeholder">{weather.current.temperature}°</div>
+                  <p className="muted">Feels like {weather.current.feelsLike}°</p>
+                  <p className="muted">Dewpoint {weather.current.dewPoint}°</p>
                 </div>
 
-                <div className="weather-symbol weather-symbol--sun">☀</div>
+                <div className="weather-symbol weather-symbol--sun">{weatherIcon}</div>
 
                 <div className="wind-placeholder">
                   <span>↗</span>
-                  <strong>9 mph</strong>
-                  <small>Gust 13 mph</small>
-                  <p>Clear</p>
+                  <strong>{weather.current.windSpeed} mph</strong>
+                  <small>Gust {weather.current.windGust} mph</small>
+                  <p>{weather.current.condition}</p>
                 </div>
               </div>
 
               <div className="metric-row">
-                <span>0 in<br />Rain</span>
-                <span>81%<br />Rel. hum.</span>
-                <span>29.6 inHg<br />Pressure</span>
+                <span>{weather.current.rain} in<br />Rain</span>
+                <span>{weather.current.humidity}%<br />Rel. hum.</span>
+                <span>{weather.current.pressure} inHg<br />Pressure</span>
               </div>
 
               <div className="sun-row">
-                <span>6:02 AM<br />Sunrise</span>
+                <span>{weather.current.sunrise}<br />Sunrise</span>
                 <span className="sun-arc">14 h 5 min</span>
-                <span>8:07 PM<br />Sunset</span>
+                <span>{weather.current.sunset}<br />Sunset</span>
               </div>
 
               <footer className="panel-link">
@@ -110,16 +244,16 @@ function App() {
             <article className="panel forecast-panel" id="ten-day">
               <header className="panel__heading">5 Day Forecast</header>
               <div className="forecast-strip">
-                {['Mon', 'Tue', 'Wed', 'Thu', 'Fri'].map((day) => (
-                  <div className="forecast-day" key={day}>
-                    <strong>{day}</strong>
-                    <span className="forecast-icon">☁</span>
+                {forecastDays.map((day) => (
+                  <div className="forecast-day" key={day.day}>
+                    <strong>{day.day}</strong>
+                    <span className="forecast-icon">{getWeatherIcon(day.condition)}</span>
                     <span>Max</span>
-                    <b>--°</b>
+                    <b>{day.high}°</b>
                     <span>Min</span>
-                    <b>--°</b>
-                    <small>↘ -- mph</small>
-                    <small>💧 0 in</small>
+                    <b>{day.low}°</b>
+                    <small>↘ {day.windSpeed} mph</small>
+                    <small>💧 {day.precipitation} in</small>
                   </div>
                 ))}
               </div>
@@ -135,6 +269,7 @@ function App() {
               <div className="radar-map">
                 <span className="map-label map-label--north">Iowa City</span>
                 <span className="map-label map-label--west">Ottumwa</span>
+                <span className="map-label map-label--location">{locationName}</span>
                 <span className="map-pin">⌖</span>
               </div>
               <footer className="panel-link">
@@ -178,8 +313,8 @@ function App() {
           <section className="panel compact-panel" aria-label="Last visited">
             <header className="panel__heading">Last visited</header>
             <div className="visited-row">
-              <span>Fairfield, Iowa</span>
-              <strong>☾ 46°</strong>
+              <span>{locationName}</span>
+              <strong>{weatherIcon} {weather.current.temperature}°</strong>
             </div>
           </section>
 
