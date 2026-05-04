@@ -1,4 +1,4 @@
-const FAIRFIELD = {
+const DEFAULT_LOCATION = {
   name: 'Fairfield',
   region: 'Iowa',
   country: 'US',
@@ -43,7 +43,7 @@ function formatTime(value) {
 function dayName(value) {
   return new Intl.DateTimeFormat('en-US', {
     weekday: 'short',
-    timeZone: FAIRFIELD.timezone,
+    timeZone: DEFAULT_LOCATION.timezone,
   }).format(new Date(`${value}T12:00:00`))
 }
 
@@ -59,7 +59,7 @@ function getWeatherLabel(code) {
   return weatherCodeLabels[code] || 'Unknown'
 }
 
-function normalizeOpenMeteoResponse(payload) {
+function normalizeOpenMeteoResponse(payload, location) {
   const current = payload.current
   const daily = payload.daily
   const forecast = daily.time.map((date, index) => ({
@@ -73,7 +73,7 @@ function normalizeOpenMeteoResponse(payload) {
   }))
 
   return {
-    location: FAIRFIELD,
+    location,
     current: {
       temperature: Math.round(current.temperature_2m),
       feelsLike: Math.round(current.apparent_temperature),
@@ -95,10 +95,10 @@ function normalizeOpenMeteoResponse(payload) {
   }
 }
 
-async function fetchLiveWeather() {
+async function fetchLiveWeather(location = DEFAULT_LOCATION) {
   const params = new URLSearchParams({
-    latitude: String(FAIRFIELD.latitude),
-    longitude: String(FAIRFIELD.longitude),
+    latitude: String(location.latitude),
+    longitude: String(location.longitude),
     current: [
       'temperature_2m',
       'relative_humidity_2m',
@@ -124,7 +124,7 @@ async function fetchLiveWeather() {
     temperature_unit: 'fahrenheit',
     wind_speed_unit: 'mph',
     precipitation_unit: 'inch',
-    timezone: FAIRFIELD.timezone,
+    timezone: location.timezone || 'auto',
     forecast_days: '9',
   })
 
@@ -134,7 +134,7 @@ async function fetchLiveWeather() {
     throw new Error(`Open-Meteo request failed with status ${response.status}`)
   }
 
-  return normalizeOpenMeteoResponse(await response.json())
+  return normalizeOpenMeteoResponse(await response.json(), location)
 }
 
 module.exports = {

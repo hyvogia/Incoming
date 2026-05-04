@@ -1,4 +1,5 @@
 const WeatherData = require('../models/WeatherData')
+const { fetchNearestObservations } = require('../services/nwsObservationService')
 const { fetchRadarMetadata } = require('../services/radarService')
 const { fetchLiveWeather } = require('../services/openMeteoService')
 
@@ -38,12 +39,21 @@ const mockWeather = {
   provider: 'mock',
 }
 
+function readCoordinate(value, fallback) {
+  const coordinate = Number(value)
+
+  return Number.isFinite(coordinate) ? coordinate : fallback
+}
+
 async function getWeatherSummary(req, res, next) {
   try {
-    const location = req.query.location || 'Fairfield, Iowa'
+    const latitude = readCoordinate(req.query.lat, 41.0076)
+    const longitude = readCoordinate(req.query.lon, -91.9637)
+    const location = req.query.location || 'Your location'
     const liveCache = await WeatherData.findOne({
-      'location.name': /fairfield/i,
       provider: 'open-meteo',
+      'location.latitude': Number(latitude.toFixed(4)),
+      'location.longitude': Number(longitude.toFixed(4)),
       expiresAt: { $gt: new Date() },
     }).lean()
 
@@ -57,10 +67,19 @@ async function getWeatherSummary(req, res, next) {
       })
     }
 
-    const liveWeather = await fetchLiveWeather()
+    const stationData = await fetchNearestObservations(latitude, longitude)
+    const liveWeather = await fetchLiveWeather({
+      name: stationData.locationName || location,
+      region: '',
+      country: 'US',
+      latitude: Number(latitude.toFixed(4)),
+      longitude: Number(longitude.toFixed(4)),
+      timezone: 'auto',
+    })
     liveWeather.radar = await fetchRadarMetadata(liveWeather.location)
+    liveWeather.observations = stationData.observations
     const weather = await WeatherData.findOneAndUpdate(
-      { 'location.name': liveWeather.location.name, 'location.region': liveWeather.location.region, provider: 'open-meteo' },
+      { provider: 'open-meteo', 'location.latitude': liveWeather.location.latitude, 'location.longitude': liveWeather.location.longitude },
       liveWeather,
       { new: true, upsert: true, setDefaultsOnInsert: true },
     ).lean()

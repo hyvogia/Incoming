@@ -26,6 +26,7 @@ type WeatherSummary = {
     sunset: string
   }
   forecast: ForecastDay[]
+  observations: Observation[]
   radar?: {
     status: 'available' | 'unavailable'
     provider?: string
@@ -37,6 +38,17 @@ type WeatherSummary = {
     message?: string
   }
   provider: string
+}
+
+type Observation = {
+  stationName: string
+  temperature?: number
+  condition?: string
+  windSpeed?: number
+  humidity?: number
+  pressure?: number
+  visibility?: number
+  observedAt?: string
 }
 
 type ForecastDay = {
@@ -82,6 +94,11 @@ const fallbackWeather: WeatherSummary = {
     { date: '2026-05-10', day: 'Sun', condition: 'Rain', high: 72, low: 50, windSpeed: 11, precipitation: 0.18 },
     { date: '2026-05-11', day: 'Mon', condition: 'Partly cloudy', high: 64, low: 45, windSpeed: 10, precipitation: 0.03 },
     { date: '2026-05-12', day: 'Tue', condition: 'Clear', high: 66, low: 46, windSpeed: 9, precipitation: 0 },
+  ],
+  observations: [
+    { stationName: 'Mount Pleasant Municipal Airport', temperature: 45, condition: 'Clear', windSpeed: 7, humidity: 87, pressure: 29.7, visibility: 10 },
+    { stationName: 'Washington', temperature: 45, condition: 'Clear', windSpeed: 7, humidity: 100, pressure: 29.6, visibility: 2 },
+    { stationName: 'Ottumwa Industrial Airport', temperature: 48, condition: 'Clear', windSpeed: 4, humidity: 71, pressure: 29.6, visibility: 10 },
   ],
   radar: {
     status: 'unavailable',
@@ -136,6 +153,14 @@ function formatRadarTime(value?: string) {
   }).format(new Date(value))
 }
 
+function formatOptionalTemperature(value: number | undefined, unit: TemperatureUnit) {
+  return typeof value === 'number' ? formatTemperature(value, unit) : '--°'
+}
+
+function formatLocationName(location: WeatherSummary['location']) {
+  return [location.name, location.region].filter(Boolean).join(', ')
+}
+
 function formatMonthDay(value?: string) {
   if (!value) {
     return ''
@@ -178,6 +203,7 @@ function App() {
   const [weather, setWeather] = useState<WeatherSummary>(fallbackWeather)
   const [weatherSource, setWeatherSource] = useState('fallback')
   const [weatherStatus, setWeatherStatus] = useState<'loading' | 'ready' | 'error'>('loading')
+  const [locationStatus, setLocationStatus] = useState('Detecting location...')
   const [temperatureUnit, setTemperatureUnit] = useState<TemperatureUnit>('fahrenheit')
 
   const showDashboard = () => setView('dashboard')
@@ -186,9 +212,18 @@ function App() {
   useEffect(() => {
     let isMounted = true
 
-    async function loadWeatherSummary() {
+    async function loadWeatherSummary(latitude?: number, longitude?: number) {
       try {
-        const response = await fetch(`${apiBaseUrl}/api/weather/summary`)
+        const params = new URLSearchParams()
+
+        if (typeof latitude === 'number' && typeof longitude === 'number') {
+          params.set('lat', latitude.toFixed(4))
+          params.set('lon', longitude.toFixed(4))
+          params.set('location', 'Your location')
+        }
+
+        const query = params.toString()
+        const response = await fetch(`${apiBaseUrl}/api/weather/summary${query ? `?${query}` : ''}`)
 
         if (!response.ok) {
           throw new Error('Weather request failed')
@@ -200,6 +235,7 @@ function App() {
           setWeather(payload.data)
           setWeatherSource(payload.meta.source)
           setWeatherStatus('ready')
+          setLocationStatus(typeof latitude === 'number' ? 'Using your current location' : 'Using default location')
         }
       } catch (error) {
         if (isMounted) {
@@ -208,7 +244,25 @@ function App() {
       }
     }
 
-    loadWeatherSummary()
+    if (!navigator.geolocation) {
+      setLocationStatus('Location unavailable. Using default location.')
+      loadWeatherSummary()
+    } else {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          loadWeatherSummary(position.coords.latitude, position.coords.longitude)
+        },
+        () => {
+          setLocationStatus('Location permission unavailable. Using default location.')
+          loadWeatherSummary()
+        },
+        {
+          enableHighAccuracy: false,
+          maximumAge: 1000 * 60 * 10,
+          timeout: 7000,
+        },
+      )
+    }
 
     return () => {
       isMounted = false
@@ -217,7 +271,8 @@ function App() {
 
   const forecastDays = weather.forecast.slice(0, 5)
   const weekDays = weather.forecast.slice(0, 9)
-  const locationName = `${weather.location.name}, ${weather.location.region}`
+  const observationCards = weather.observations.length > 0 ? weather.observations.slice(0, 3) : fallbackWeather.observations
+  const locationName = formatLocationName(weather.location)
   const weatherIcon = getWeatherIcon(weather.current.condition)
   const unitLabel = temperatureUnit === 'fahrenheit' ? 'F' : 'C'
   const hasLiveRadar = weather.radar?.status === 'available' && weather.radar.radarTileUrl
@@ -284,7 +339,7 @@ function App() {
         <main className="dashboard" id="today">
           <div className={`data-status data-status--${weatherStatus}`}>
             {weatherStatus === 'loading' && 'Loading live weather...'}
-            {weatherStatus === 'ready' && `Live weather connected via ${weatherSource}`}
+            {weatherStatus === 'ready' && `Live weather connected via ${weatherSource}. ${locationStatus}`}
             {weatherStatus === 'error' && 'Live weather unavailable. Showing fallback data.'}
           </div>
 
@@ -446,19 +501,19 @@ function App() {
           <section className="panel observations-panel" aria-label="Nearest observations">
             <header className="panel__heading">Nearest Observations</header>
             <div className="observations-grid">
-              {['Mount Pleasant Municipal Airport', 'Washington', 'Ottumwa Industrial Airport'].map((station) => (
-                <article className="observation-card" key={station}>
-                  <h3>{station}</h3>
+              {observationCards.map((station) => (
+                <article className="observation-card" key={station.stationName}>
+                  <h3>{station.stationName}</h3>
                   <div className="observation-card__main">
-                    <span className="weather-symbol weather-symbol--small">☀</span>
-                    <strong>--°</strong>
+                    <span className="weather-symbol weather-symbol--small">{getWeatherIcon(station.condition || 'Clear')}</span>
+                    <strong>{formatOptionalTemperature(station.temperature, temperatureUnit)}</strong>
                   </div>
-                  <p>Clear</p>
+                  <p>{station.condition || 'Observed'}</p>
                   <div className="observation-card__meta">
-                    <span>↗ -- mph</span>
-                    <span>Feels like --°</span>
-                    <span>Rel. hum. --%</span>
-                    <span>Visibility -- mi</span>
+                    <span>↗ {station.windSpeed ?? '--'} mph</span>
+                    <span>Pressure {station.pressure ?? '--'} inHg</span>
+                    <span>Rel. hum. {station.humidity ?? '--'}%</span>
+                    <span>Visibility {station.visibility ?? '--'} mi</span>
                   </div>
                 </article>
               ))}
