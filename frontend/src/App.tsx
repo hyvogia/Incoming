@@ -61,6 +61,18 @@ type ForecastDay = {
   precipitation: number
 }
 
+type LocationMatch = {
+  id: number
+  name: string
+  region: string
+  country: string
+  countryCode: string
+  latitude: number
+  longitude: number
+  timezone: string
+  label: string
+}
+
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:5050'
 
 const fallbackWeather: WeatherSummary = {
@@ -205,44 +217,72 @@ function App() {
   const [weatherStatus, setWeatherStatus] = useState<'loading' | 'ready' | 'error'>('loading')
   const [locationStatus, setLocationStatus] = useState('Detecting location...')
   const [temperatureUnit, setTemperatureUnit] = useState<TemperatureUnit>('fahrenheit')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [locationMatches, setLocationMatches] = useState<LocationMatch[]>([])
+  const [isSearchingLocations, setIsSearchingLocations] = useState(false)
+  const [isSearchOpen, setIsSearchOpen] = useState(false)
 
   const showDashboard = () => setView('dashboard')
   const showDevelopment = () => setView('development')
 
+  async function loadWeatherSummary(options?: {
+    latitude?: number
+    longitude?: number
+    label?: string
+    name?: string
+    region?: string
+    country?: string
+    timezone?: string
+    status?: string
+  }) {
+    try {
+      setWeatherStatus('loading')
+      const params = new URLSearchParams()
+      const latitude = options?.latitude
+      const longitude = options?.longitude
+
+      if (typeof latitude === 'number' && typeof longitude === 'number') {
+        params.set('lat', latitude.toFixed(4))
+        params.set('lon', longitude.toFixed(4))
+        params.set('location', options?.label || 'Selected location')
+      }
+
+      if (options?.name) {
+        params.set('name', options.name)
+      }
+
+      if (options?.region) {
+        params.set('region', options.region)
+      }
+
+      if (options?.country) {
+        params.set('country', options.country)
+      }
+
+      if (options?.timezone) {
+        params.set('timezone', options.timezone)
+      }
+
+      const query = params.toString()
+      const response = await fetch(`${apiBaseUrl}/api/weather/summary${query ? `?${query}` : ''}`)
+
+      if (!response.ok) {
+        throw new Error('Weather request failed')
+      }
+
+      const payload = await response.json()
+
+      setWeather(payload.data)
+      setWeatherSource(payload.meta.source)
+      setWeatherStatus('ready')
+      setLocationStatus(options?.status || (typeof latitude === 'number' ? 'Using selected location' : 'Using default location'))
+    } catch (error) {
+      setWeatherStatus('error')
+    }
+  }
+
   useEffect(() => {
     let isMounted = true
-
-    async function loadWeatherSummary(latitude?: number, longitude?: number) {
-      try {
-        const params = new URLSearchParams()
-
-        if (typeof latitude === 'number' && typeof longitude === 'number') {
-          params.set('lat', latitude.toFixed(4))
-          params.set('lon', longitude.toFixed(4))
-          params.set('location', 'Your location')
-        }
-
-        const query = params.toString()
-        const response = await fetch(`${apiBaseUrl}/api/weather/summary${query ? `?${query}` : ''}`)
-
-        if (!response.ok) {
-          throw new Error('Weather request failed')
-        }
-
-        const payload = await response.json()
-
-        if (isMounted) {
-          setWeather(payload.data)
-          setWeatherSource(payload.meta.source)
-          setWeatherStatus('ready')
-          setLocationStatus(typeof latitude === 'number' ? 'Using your current location' : 'Using default location')
-        }
-      } catch (error) {
-        if (isMounted) {
-          setWeatherStatus('error')
-        }
-      }
-    }
 
     if (!navigator.geolocation) {
       setLocationStatus('Location unavailable. Using default location.')
@@ -250,11 +290,20 @@ function App() {
     } else {
       navigator.geolocation.getCurrentPosition(
         (position) => {
-          loadWeatherSummary(position.coords.latitude, position.coords.longitude)
+          if (isMounted) {
+            loadWeatherSummary({
+              latitude: position.coords.latitude,
+              longitude: position.coords.longitude,
+              label: 'Your location',
+              status: 'Using your current location',
+            })
+          }
         },
         () => {
-          setLocationStatus('Location permission unavailable. Using default location.')
-          loadWeatherSummary()
+          if (isMounted) {
+            setLocationStatus('Location permission unavailable. Using default location.')
+            loadWeatherSummary()
+          }
         },
         {
           enableHighAccuracy: false,
@@ -268,6 +317,65 @@ function App() {
       isMounted = false
     }
   }, [])
+
+  useEffect(() => {
+    const trimmedQuery = searchQuery.trim()
+
+    if (trimmedQuery.length < 2) {
+      setLocationMatches([])
+      setIsSearchingLocations(false)
+      return
+    }
+
+    let isActive = true
+    const timeout = window.setTimeout(async () => {
+      try {
+        setIsSearchingLocations(true)
+        const response = await fetch(`${apiBaseUrl}/api/locations/search?query=${encodeURIComponent(trimmedQuery)}`)
+
+        if (!response.ok) {
+          throw new Error('Location search failed')
+        }
+
+        const payload = await response.json()
+
+        if (isActive) {
+          setLocationMatches(payload.data)
+          setIsSearchOpen(true)
+        }
+      } catch (error) {
+        if (isActive) {
+          setLocationMatches([])
+        }
+      } finally {
+        if (isActive) {
+          setIsSearchingLocations(false)
+        }
+      }
+    }, 250)
+
+    return () => {
+      isActive = false
+      window.clearTimeout(timeout)
+    }
+  }, [searchQuery])
+
+  function selectLocation(location: LocationMatch) {
+    setSearchQuery(location.label)
+    setLocationMatches([])
+    setIsSearchOpen(false)
+    showDashboard()
+    loadWeatherSummary({
+      latitude: location.latitude,
+      longitude: location.longitude,
+      label: location.label,
+      name: location.name,
+      region: location.region,
+      country: location.country,
+      timezone: location.timezone,
+      status: `Using ${location.label}`,
+    })
+  }
 
   const forecastDays = weather.forecast.slice(0, 5)
   const weekDays = weather.forecast.slice(0, 9)
@@ -291,11 +399,34 @@ function App() {
             Send feedback
           </button>
 
-          <label className="search" aria-label="Search location">
+          <div className="search" role="search" aria-label="Search location">
             <span className="search__icon">⌕</span>
-            <input type="search" placeholder="Fairfield, Iowa" />
+            <input
+              type="search"
+              placeholder="Search city or ZIP"
+              value={searchQuery}
+              onChange={(event) => {
+                setSearchQuery(event.target.value)
+                setIsSearchOpen(true)
+              }}
+              onFocus={() => setIsSearchOpen(true)}
+            />
             <span className="search__location">➤</span>
-          </label>
+            {isSearchOpen && (searchQuery.trim().length >= 2 || isSearchingLocations) && (
+              <div className="search-results">
+                {isSearchingLocations && <div className="search-results__status">Searching locations...</div>}
+                {!isSearchingLocations && locationMatches.length === 0 && (
+                  <div className="search-results__status">No matching locations</div>
+                )}
+                {!isSearchingLocations && locationMatches.map((location) => (
+                  <button key={location.id} type="button" onClick={() => selectLocation(location)}>
+                    <strong>{location.name}</strong>
+                    <span>{[location.region, location.country].filter(Boolean).join(', ')}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
 
           <div className="topbar__actions is-muted-control" aria-label="Header actions">
             <button type="button" aria-label="Share" onClick={showDevelopment}>

@@ -50,6 +50,10 @@ async function getWeatherSummary(req, res, next) {
     const latitude = readCoordinate(req.query.lat, 41.0076)
     const longitude = readCoordinate(req.query.lon, -91.9637)
     const location = req.query.location || 'Your location'
+    const locationName = String(req.query.name || location)
+    const region = String(req.query.region || '')
+    const country = String(req.query.country || 'US')
+    const timezone = String(req.query.timezone || 'auto')
     const liveCache = await WeatherData.findOne({
       provider: 'open-meteo',
       'location.latitude': Number(latitude.toFixed(4)),
@@ -69,12 +73,12 @@ async function getWeatherSummary(req, res, next) {
 
     const stationData = await fetchNearestObservations(latitude, longitude)
     const liveWeather = await fetchLiveWeather({
-      name: stationData.locationName || location,
-      region: '',
-      country: 'US',
+      name: stationData.locationName || locationName,
+      region,
+      country,
       latitude: Number(latitude.toFixed(4)),
       longitude: Number(longitude.toFixed(4)),
-      timezone: 'auto',
+      timezone,
     })
     liveWeather.radar = await fetchRadarMetadata(liveWeather.location)
     liveWeather.observations = stationData.observations

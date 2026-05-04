@@ -4,6 +4,7 @@ const cors = require('cors')
 const express = require('express')
 const morgan = require('morgan')
 const connectDatabase = require('./config/database')
+const locationRoutes = require('./routes/locationRoutes')
 const weatherRoutes = require('./routes/weatherRoutes')
 
 const app = express()
@@ -22,6 +23,7 @@ app.get('/api/health', (req, res) => {
 })
 
 app.use('/api/weather', weatherRoutes)
+app.use('/api/locations', locationRoutes)
 
 app.use((req, res) => {
   res.status(404).json({
