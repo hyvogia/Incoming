@@ -1,4 +1,5 @@
 const WeatherData = require('../models/WeatherData')
+const { fetchRadarMetadata } = require('../services/radarService')
 const { fetchLiveWeather } = require('../services/openMeteoService')
 
 const mockWeather = {
@@ -57,6 +58,7 @@ async function getWeatherSummary(req, res, next) {
     }
 
     const liveWeather = await fetchLiveWeather()
+    liveWeather.radar = await fetchRadarMetadata(liveWeather.location)
     const weather = await WeatherData.findOneAndUpdate(
       { 'location.name': liveWeather.location.name, 'location.region': liveWeather.location.region, provider: 'open-meteo' },
       liveWeather,

@@ -43,6 +43,23 @@ const observationSchema = new mongoose.Schema(
   { _id: false },
 )
 
+const radarSchema = new mongoose.Schema(
+  {
+    status: { type: String, enum: ['available', 'unavailable'], default: 'unavailable' },
+    provider: { type: String },
+    attribution: { type: String },
+    frameTime: { type: String },
+    generatedAt: { type: String },
+    zoom: { type: Number },
+    tileX: { type: Number },
+    tileY: { type: Number },
+    baseMapTileUrl: { type: String },
+    radarTileUrl: { type: String },
+    message: { type: String },
+  },
+  { _id: false },
+)
+
 const weatherDataSchema = new mongoose.Schema(
   {
     location: {
@@ -55,6 +72,7 @@ const weatherDataSchema = new mongoose.Schema(
     current: { type: currentWeatherSchema, required: true },
     forecast: { type: [forecastDaySchema], default: [] },
     observations: { type: [observationSchema], default: [] },
+    radar: { type: radarSchema },
     provider: { type: String, default: 'mock' },
     observedAt: { type: Date, default: Date.now },
     expiresAt: { type: Date },

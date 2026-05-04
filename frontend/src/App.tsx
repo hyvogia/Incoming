@@ -26,6 +26,16 @@ type WeatherSummary = {
     sunset: string
   }
   forecast: ForecastDay[]
+  radar?: {
+    status: 'available' | 'unavailable'
+    provider?: string
+    attribution?: string
+    frameTime?: string
+    generatedAt?: string
+    baseMapTileUrl?: string
+    radarTileUrl?: string
+    message?: string
+  }
   provider: string
 }
 
@@ -68,6 +78,11 @@ const fallbackWeather: WeatherSummary = {
     { day: 'Thu', condition: 'Partly cloudy', high: 61, low: 37, windSpeed: 7, precipitation: 0.01 },
     { day: 'Fri', condition: 'Partly cloudy', high: 66, low: 46, windSpeed: 7, precipitation: 0 },
   ],
+  radar: {
+    status: 'unavailable',
+    provider: 'LibreWXR',
+    attribution: 'Radar data by LibreWXR',
+  },
   provider: 'fallback',
 }
 
@@ -103,6 +118,17 @@ function convertTemperature(value: number, unit: TemperatureUnit) {
 
 function formatTemperature(value: number, unit: TemperatureUnit) {
   return `${convertTemperature(value, unit)}°`
+}
+
+function formatRadarTime(value?: string) {
+  if (!value) {
+    return 'Live frame pending'
+  }
+
+  return new Intl.DateTimeFormat('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(new Date(value))
 }
 
 function App() {
@@ -151,6 +177,7 @@ function App() {
   const locationName = `${weather.location.name}, ${weather.location.region}`
   const weatherIcon = getWeatherIcon(weather.current.condition)
   const unitLabel = temperatureUnit === 'fahrenheit' ? 'F' : 'C'
+  const hasLiveRadar = weather.radar?.status === 'available' && weather.radar.radarTileUrl
 
   return (
     <div className="app-shell">
@@ -299,11 +326,22 @@ function App() {
 
             <article className="panel radar-panel" id="radar">
               <header className="panel__heading">Weather Radar</header>
-              <div className="radar-map">
+              <div className={`radar-map ${hasLiveRadar ? 'radar-map--live' : ''}`}>
+                {hasLiveRadar && (
+                  <>
+                    <img className="radar-map__base" src={weather.radar?.baseMapTileUrl} alt="" />
+                    <img className="radar-map__overlay" src={weather.radar?.radarTileUrl} alt={`Live weather radar near ${locationName}`} />
+                  </>
+                )}
                 <span className="map-label map-label--north">Iowa City</span>
                 <span className="map-label map-label--west">Ottumwa</span>
                 <span className="map-label map-label--location">{locationName}</span>
                 <span className="map-pin">⌖</span>
+                <div className="radar-live-meta">
+                  <strong>{hasLiveRadar ? 'Live radar' : 'Radar loading'}</strong>
+                  <span>{formatRadarTime(weather.radar?.frameTime)}</span>
+                  <small>{weather.radar?.attribution || 'Radar data pending'}</small>
+                </div>
               </div>
               <footer className="panel-link">
                 <button type="button" onClick={showDevelopment}>
