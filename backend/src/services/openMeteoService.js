@@ -63,6 +63,7 @@ function normalizeOpenMeteoResponse(payload) {
   const current = payload.current
   const daily = payload.daily
   const forecast = daily.time.map((date, index) => ({
+    date,
     day: dayName(date),
     condition: getWeatherLabel(daily.weather_code[index]),
     high: Math.round(daily.temperature_2m_max[index]),
@@ -124,7 +125,7 @@ async function fetchLiveWeather() {
     wind_speed_unit: 'mph',
     precipitation_unit: 'inch',
     timezone: FAIRFIELD.timezone,
-    forecast_days: '5',
+    forecast_days: '9',
   })
 
   const response = await fetch(`https://api.open-meteo.com/v1/forecast?${params}`)

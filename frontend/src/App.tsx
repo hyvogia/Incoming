@@ -40,6 +40,7 @@ type WeatherSummary = {
 }
 
 type ForecastDay = {
+  date?: string
   day: string
   condition: string
   high: number
@@ -72,11 +73,15 @@ const fallbackWeather: WeatherSummary = {
     sunset: '8:07 PM',
   },
   forecast: [
-    { day: 'Mon', condition: 'Partly cloudy', high: 81, low: 46, windSpeed: 9, precipitation: 0.01 },
-    { day: 'Tue', condition: 'Cloudy', high: 59, low: 46, windSpeed: 9, precipitation: 0 },
-    { day: 'Wed', condition: 'Cloudy', high: 55, low: 39, windSpeed: 7, precipitation: 0 },
-    { day: 'Thu', condition: 'Partly cloudy', high: 61, low: 37, windSpeed: 7, precipitation: 0.01 },
-    { day: 'Fri', condition: 'Partly cloudy', high: 66, low: 46, windSpeed: 7, precipitation: 0 },
+    { date: '2026-05-04', day: 'Mon', condition: 'Partly cloudy', high: 81, low: 46, windSpeed: 9, precipitation: 0.01 },
+    { date: '2026-05-05', day: 'Tue', condition: 'Cloudy', high: 59, low: 46, windSpeed: 9, precipitation: 0 },
+    { date: '2026-05-06', day: 'Wed', condition: 'Cloudy', high: 55, low: 39, windSpeed: 7, precipitation: 0 },
+    { date: '2026-05-07', day: 'Thu', condition: 'Partly cloudy', high: 61, low: 37, windSpeed: 7, precipitation: 0.01 },
+    { date: '2026-05-08', day: 'Fri', condition: 'Partly cloudy', high: 66, low: 46, windSpeed: 7, precipitation: 0 },
+    { date: '2026-05-09', day: 'Sat', condition: 'Clear', high: 68, low: 47, windSpeed: 8, precipitation: 0 },
+    { date: '2026-05-10', day: 'Sun', condition: 'Rain', high: 72, low: 50, windSpeed: 11, precipitation: 0.18 },
+    { date: '2026-05-11', day: 'Mon', condition: 'Partly cloudy', high: 64, low: 45, windSpeed: 10, precipitation: 0.03 },
+    { date: '2026-05-12', day: 'Tue', condition: 'Clear', high: 66, low: 46, windSpeed: 9, precipitation: 0 },
   ],
   radar: {
     status: 'unavailable',
@@ -131,6 +136,43 @@ function formatRadarTime(value?: string) {
   }).format(new Date(value))
 }
 
+function formatMonthDay(value?: string) {
+  if (!value) {
+    return ''
+  }
+
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'numeric',
+    day: 'numeric',
+  }).format(new Date(`${value}T12:00:00`))
+}
+
+function getTemperaturePolyline(days: ForecastDay[], unit: TemperatureUnit) {
+  if (days.length === 0) {
+    return ''
+  }
+
+  const temperatures = days.map((day) => convertTemperature(day.high, unit))
+  const min = Math.min(...temperatures)
+  const max = Math.max(...temperatures)
+  const range = Math.max(max - min, 1)
+
+  return temperatures
+    .map((temperature, index) => {
+      const x = days.length === 1 ? 50 : (index / (days.length - 1)) * 100
+      const y = 86 - ((temperature - min) / range) * 62
+
+      return `${x},${y}`
+    })
+    .join(' ')
+}
+
+function getPrecipitationHeight(day: ForecastDay, days: ForecastDay[]) {
+  const max = Math.max(...days.map((forecastDay) => forecastDay.precipitation), 0.01)
+
+  return Math.max((day.precipitation / max) * 82, day.precipitation > 0 ? 8 : 2)
+}
+
 function App() {
   const [view, setView] = useState<AppView>('dashboard')
   const [weather, setWeather] = useState<WeatherSummary>(fallbackWeather)
@@ -174,10 +216,12 @@ function App() {
   }, [])
 
   const forecastDays = weather.forecast.slice(0, 5)
+  const weekDays = weather.forecast.slice(0, 9)
   const locationName = `${weather.location.name}, ${weather.location.region}`
   const weatherIcon = getWeatherIcon(weather.current.condition)
   const unitLabel = temperatureUnit === 'fahrenheit' ? 'F' : 'C'
   const hasLiveRadar = weather.radar?.status === 'available' && weather.radar.radarTileUrl
+  const weeklyTemperatureLine = getTemperaturePolyline(weekDays, temperatureUnit)
 
   return (
     <div className="app-shell">
@@ -355,22 +399,32 @@ function App() {
             <header className="panel__heading">Weather for the week</header>
             <div className="weekly-chart">
               <div className="chart-days">
-                {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun', 'Mon', 'Tue'].map((day) => (
-                  <div key={day}>
-                    <strong>{day}</strong>
-                    <small>☀ ☁ ☂</small>
+                {weekDays.map((day) => (
+                  <div key={day.date || `${day.day}-${day.high}-${day.low}`}>
+                    <strong>{day.day}</strong>
+                    <span>{formatMonthDay(day.date)}</span>
+                    <small title={day.condition}>{getWeatherIcon(day.condition)} {formatTemperature(day.high, temperatureUnit)}</small>
                   </div>
                 ))}
               </div>
               <div className="chart-grid">
-                <div className="temperature-line" />
-                <div className="precip-bar precip-bar--one" />
-                <div className="precip-bar precip-bar--two" />
-                <div className="precip-bar precip-bar--three" />
+                <svg className="temperature-line" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+                  <polyline points={weeklyTemperatureLine} />
+                </svg>
+                <div className="weekly-bars" aria-label="Daily precipitation">
+                  {weekDays.map((day) => (
+                    <span
+                      key={day.date || `${day.day}-rain`}
+                      className="weekly-precip-bar"
+                      style={{ height: `${getPrecipitationHeight(day, weekDays)}%` }}
+                      title={`${day.precipitation} in precipitation`}
+                    />
+                  ))}
+                </div>
               </div>
               <div className="wind-row">
-                {Array.from({ length: 24 }, (_, index) => (
-                  <span key={index}>➜</span>
+                {weekDays.map((day) => (
+                  <span key={day.date || `${day.day}-wind`}>➜ {day.windSpeed}</span>
                 ))}
               </div>
             </div>

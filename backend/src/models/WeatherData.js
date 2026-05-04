@@ -19,6 +19,7 @@ const currentWeatherSchema = new mongoose.Schema(
 
 const forecastDaySchema = new mongoose.Schema(
   {
+    date: { type: String },
     day: { type: String, required: true },
     condition: { type: String, required: true },
     high: { type: Number },

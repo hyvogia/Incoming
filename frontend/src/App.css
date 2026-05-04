@@ -456,16 +456,24 @@
 .chart-days {
   display: grid;
   grid-template-columns: repeat(9, 1fr);
-  gap: 8px;
+  gap: 6px;
   padding: 10px 0 4px;
   color: #333458;
   text-align: center;
+}
+
+.chart-days span {
+  display: block;
+  color: #5f6074;
+  font-size: 11px;
+  line-height: 1.2;
 }
 
 .chart-days small {
   display: block;
   margin-top: 4px;
   color: #777884;
+  font-size: 12px;
   white-space: nowrap;
 }
 
@@ -483,37 +491,43 @@
 
 .temperature-line {
   position: absolute;
-  inset: 24px 26px 54px;
-  border-bottom: 4px solid #ee3f50;
-  border-radius: 50%;
-  transform: skewY(-7deg);
+  inset: 18px 18px 38px;
+  z-index: 2;
+  width: calc(100% - 36px);
+  height: calc(100% - 56px);
+  overflow: visible;
 }
 
-.precip-bar {
+.temperature-line polyline {
+  fill: none;
+  stroke: #ee3f50;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2.6;
+  vector-effect: non-scaling-stroke;
+}
+
+.weekly-bars {
   position: absolute;
-  bottom: 0;
-  width: 18px;
-  background: #5d99ed;
+  inset: auto 18px 0;
+  height: 48%;
+  display: grid;
+  grid-template-columns: repeat(9, 1fr);
+  align-items: end;
+  gap: 6px;
 }
 
-.precip-bar--one {
-  right: 27%;
-  height: 178px;
-}
-
-.precip-bar--two {
-  right: 23%;
-  height: 48px;
-}
-
-.precip-bar--three {
-  left: 12%;
-  height: 8px;
+.weekly-precip-bar {
+  width: min(22px, 62%);
+  min-height: 2px;
+  margin: 0 auto;
+  background: rgba(93, 153, 237, 0.82);
 }
 
 .wind-row {
   display: grid;
-  grid-template-columns: repeat(24, 1fr);
+  grid-template-columns: repeat(9, 1fr);
+  gap: 6px;
   padding-top: 8px;
   color: #7db44a;
   font-size: 12px;
