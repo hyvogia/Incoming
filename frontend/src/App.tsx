@@ -210,6 +210,20 @@ function getPrecipitationHeight(day: ForecastDay, days: ForecastDay[]) {
   return Math.max((day.precipitation / max) * 82, day.precipitation > 0 ? 8 : 2)
 }
 
+function getForecaUrl(section: 'hourly' | '10day' | 'radar' | 'week', location: WeatherSummary['location']) {
+  const lat = typeof location.latitude === 'number' ? location.latitude.toFixed(4) : ''
+  const lon = typeof location.longitude === 'number' ? location.longitude.toFixed(4) : ''
+  const base = 'https://www.foreca.com/'
+  const sectionParam = section === '10day' ? '10day' : section
+
+  const params = new URLSearchParams()
+  if (lat) params.set('lat', lat)
+  if (lon) params.set('lon', lon)
+  params.set('section', sectionParam)
+
+  return `${base}?${params.toString()}`
+}
+
 function App() {
   const [view, setView] = useState<AppView>('dashboard')
   const [weather, setWeather] = useState<WeatherSummary>(fallbackWeather)
@@ -466,16 +480,36 @@ function App() {
         >
           Today
         </a>
-        <a className="section-tabs__item section-tabs__item--muted" href="#development" onClick={showDevelopment}>
+        <a
+          className="section-tabs__item section-tabs__item--muted"
+          href={getForecaUrl('hourly', weather.location)}
+          target="_blank"
+          rel="noreferrer"
+        >
           Hourly
         </a>
-        <a className="section-tabs__item section-tabs__item--muted" href="#development" onClick={showDevelopment}>
+        <a
+          className="section-tabs__item section-tabs__item--muted"
+          href={getForecaUrl('10day', weather.location)}
+          target="_blank"
+          rel="noreferrer"
+        >
           10 Day
         </a>
-        <a className="section-tabs__item section-tabs__item--muted" href="#development" onClick={showDevelopment}>
+        <a
+          className="section-tabs__item section-tabs__item--muted"
+          href={getForecaUrl('week', weather.location)}
+          target="_blank"
+          rel="noreferrer"
+        >
           Week
         </a>
-        <a className="section-tabs__item section-tabs__item--muted" href="#development" onClick={showDevelopment}>
+        <a
+          className="section-tabs__item section-tabs__item--muted"
+          href={getForecaUrl('radar', weather.location)}
+          target="_blank"
+          rel="noreferrer"
+        >
           Radar
         </a>
         <a className="section-tabs__item section-tabs__item--muted" href="#development" onClick={showDevelopment}>
@@ -543,9 +577,9 @@ function App() {
               </div>
 
               <footer className="panel-link">
-                <button type="button" onClick={showDevelopment}>
+                <a href={getForecaUrl('hourly', weather.location)} target="_blank" rel="noreferrer">
                   See Hourly Forecast ›
-                </button>
+                </a>
               </footer>
             </article>
 
@@ -566,9 +600,9 @@ function App() {
                 ))}
               </div>
               <footer className="panel-link">
-                <button type="button" onClick={showDevelopment}>
+                <a href={getForecaUrl('10day', weather.location)} target="_blank" rel="noreferrer">
                   See 10 Day Forecast ›
-                </button>
+                </a>
               </footer>
             </article>
 
@@ -592,9 +626,9 @@ function App() {
                 </div>
               </div>
               <footer className="panel-link">
-                <button type="button" onClick={showDevelopment}>
-                  See Radar ›
-                </button>
+                  <a href={getForecaUrl('radar', weather.location)} target="_blank" rel="noreferrer">
+                    See Radar ›
+                  </a>
               </footer>
             </article>
           </section>
@@ -633,9 +667,9 @@ function App() {
               </div>
             </div>
             <footer className="panel-link">
-              <button type="button" onClick={showDevelopment}>
-                See detailed forecast for the upcoming week ›
-              </button>
+                <a href={getForecaUrl('week', weather.location)} target="_blank" rel="noreferrer">
+                  See detailed forecast for the upcoming week ›
+                </a>
             </footer>
           </section>
 
