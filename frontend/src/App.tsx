@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import './App.css'
 
 type AppView = 'dashboard' | 'development'
+type TemperatureUnit = 'fahrenheit' | 'celsius'
 
 type WeatherSummary = {
   location: {
@@ -92,11 +93,24 @@ function getWeatherIcon(condition: string) {
   return '☀'
 }
 
+function convertTemperature(value: number, unit: TemperatureUnit) {
+  if (unit === 'fahrenheit') {
+    return value
+  }
+
+  return Math.round((value - 32) * (5 / 9))
+}
+
+function formatTemperature(value: number, unit: TemperatureUnit) {
+  return `${convertTemperature(value, unit)}°`
+}
+
 function App() {
   const [view, setView] = useState<AppView>('dashboard')
   const [weather, setWeather] = useState<WeatherSummary>(fallbackWeather)
   const [weatherSource, setWeatherSource] = useState('fallback')
   const [weatherStatus, setWeatherStatus] = useState<'loading' | 'ready' | 'error'>('loading')
+  const [temperatureUnit, setTemperatureUnit] = useState<TemperatureUnit>('fahrenheit')
 
   const showDashboard = () => setView('dashboard')
   const showDevelopment = () => setView('development')
@@ -136,6 +150,7 @@ function App() {
   const forecastDays = weather.forecast.slice(0, 5)
   const locationName = `${weather.location.name}, ${weather.location.region}`
   const weatherIcon = getWeatherIcon(weather.current.condition)
+  const unitLabel = temperatureUnit === 'fahrenheit' ? 'F' : 'C'
 
   return (
     <div className="app-shell">
@@ -206,10 +221,28 @@ function App() {
             <article className="panel current-panel">
               <div className="panel__body current-panel__body">
                 <div>
-                  <p className="location-label">{weather.location.name}</p>
-                  <div className="temperature-placeholder">{weather.current.temperature}°</div>
-                  <p className="muted">Feels like {weather.current.feelsLike}°</p>
-                  <p className="muted">Dewpoint {weather.current.dewPoint}°</p>
+                  <div className="location-heading">
+                    <p className="location-label">{weather.location.name}</p>
+                    <div className="unit-toggle" aria-label="Temperature unit">
+                      <button
+                        className={temperatureUnit === 'fahrenheit' ? 'unit-toggle__button--active' : ''}
+                        type="button"
+                        onClick={() => setTemperatureUnit('fahrenheit')}
+                      >
+                        °F
+                      </button>
+                      <button
+                        className={temperatureUnit === 'celsius' ? 'unit-toggle__button--active' : ''}
+                        type="button"
+                        onClick={() => setTemperatureUnit('celsius')}
+                      >
+                        °C
+                      </button>
+                    </div>
+                  </div>
+                  <div className="temperature-placeholder">{formatTemperature(weather.current.temperature, temperatureUnit)}</div>
+                  <p className="muted">Feels like {formatTemperature(weather.current.feelsLike, temperatureUnit)}</p>
+                  <p className="muted">Dewpoint {formatTemperature(weather.current.dewPoint, temperatureUnit)}</p>
                 </div>
 
                 <div className="weather-symbol weather-symbol--sun">{weatherIcon}</div>
@@ -249,9 +282,9 @@ function App() {
                     <strong>{day.day}</strong>
                     <span className="forecast-icon">{getWeatherIcon(day.condition)}</span>
                     <span>Max</span>
-                    <b>{day.high}°</b>
+                    <b>{formatTemperature(day.high, temperatureUnit)}</b>
                     <span>Min</span>
-                    <b>{day.low}°</b>
+                    <b>{formatTemperature(day.low, temperatureUnit)}</b>
                     <small>↘ {day.windSpeed} mph</small>
                     <small>💧 {day.precipitation} in</small>
                   </div>
@@ -314,7 +347,7 @@ function App() {
             <header className="panel__heading">Last visited</header>
             <div className="visited-row">
               <span>{locationName}</span>
-              <strong>{weatherIcon} {weather.current.temperature}°</strong>
+              <strong>{weatherIcon} {formatTemperature(weather.current.temperature, temperatureUnit)}{unitLabel}</strong>
             </div>
           </section>
 
